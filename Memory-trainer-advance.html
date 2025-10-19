@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>🧠 記憶力トレーニング（称号＋グラフ対応）</title>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#111827; --muted:#94a3b8; --text:#e5e7eb;
+    --accent:#22c55e; --danger:#ef4444; --warn:#f59e0b;
+  }
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;}
+  .wrap{max-width:960px;margin:24px auto;padding:0 16px;}
+  header{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+  .badge{background:#1f2937;padding:6px 10px;border-radius:999px;font-size:12px;color:var(--muted)}
+  h1{font-size:clamp(20px,3.6vw,28px);margin:0}
+  .grid{display:grid;grid-template-columns:1fr;gap:16px}
+  @media (min-width: 960px){ .grid{grid-template-columns: 1fr 320px;} }
+  .card{background:var(--panel);border:1px solid #1f2937;border-radius:14px;padding:16px}
+  .card h2{margin:0 0 10px;font-size:18px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  label{font-size:12px;color:var(--muted)}
+  input[type="number"],select,textarea{background:#0b1220;border:1px solid #223; color:var(--text);padding:8px;border-radius:10px}
+  input[type="file"]{color:var(--muted)}
+  textarea{width:100%}
+  button{border:0;border-radius:10px;padding:10px 14px;cursor:pointer;font-weight:600}
+  .primary{background:var(--accent);color:#052e16}
+  .ghost{background:#0b1220;color:var(--text);border:1px solid #223}
+  .danger{background:var(--danger);color:#fff}
+  .warn{background:var(--warn);color:#171717}
+  .muted{color:var(--muted)}
+  .words{font-size:20px;line-height:1.8;letter-spacing:.5px}
+  .progress{height:10px;background:#0b1220;border-radius:999px;overflow:hidden;border:1px solid #223}
+  .bar{height:100%;background:linear-gradient(90deg,#22c55e,#84cc16)}
+  .flex{display:flex;gap:10px;align-items:center}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+  .chip{background:#0b1220;border:1px solid #223;border-radius:999px;padding:6px 10px;font-size:12px}
+  .pill{display:inline-block;background:#0b1220;border:1px dashed #334155;color:#93c5fd;border-radius:999px;padding:4px 8px;font-size:12px}
+  .kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .kpi .box{background:#0b1220;border:1px solid #223;border-radius:12px;padding:10px;text-align:center}
+  canvas{width:100%;height:200px;background:#0b1220;border:1px solid #223;border-radius:12px}
+  table{width:100%;border-collapse:collapse}
+  th,td{border-bottom:1px solid #1f2937;padding:8px 6px;font-size:13px}
+  th{color:#9ca3af;text-align:left}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🧠 記憶力トレーニング</h1>
+    <span class="badge">称号＋グラフ対応</span>
+  </header>
+
+  <div class="grid">
+    <!-- 左メイン -->
+    <main class="card" id="main">
+      <div class="flex" style="justify-content:space-between;gap:12px;">
+        <div class="flex" style="gap:10px;">
+          <span class="pill">レベル：<b id="levelLabel">初級</b></span>
+          <span class="pill">ラウンド：<b><span id="roundNow">0</span>/<span id="roundTotal">5</span></b></span>
+          <span class="pill">表示秒数：<b id="secLabel">10秒</b></span>
+          <span class="pill">単語数：<b id="nLabel">5語</b></span>
+        </div>
+        <button class="ghost" id="resetAll">初期化</button>
+      </div>
+      <div class="progress" style="margin:12px 0 16px;">
+        <div class="bar" id="bar" style="width:0%"></div>
+      </div>
+
+      <section id="phaseIntro">
+        <h2>ようこそ！</h2>
+        <p class="muted">右側の設定を調整して「開始」を押してください。</p>
+      </section>
+
+      <section id="phaseShow" hidden>
+        <h2>覚えてください</h2>
+        <div class="words" id="words"></div>
+        <div class="chips" id="chips"></div>
+        <div class="row" style="margin-top:12px;">
+          <button class="warn" id="autoHide">⏱ 自動で隠す</button>
+          <button class="ghost" id="hideNow">🙈 今すぐ隠す</button>
+          <span class="muted" id="countdownNote"></span>
+        </div>
+      </section>
+
+      <section id="phaseAnswer" hidden>
+        <h2>思い出して入力</h2>
+        <textarea id="answer" rows="5" placeholder="例）山 川 海 ..."></textarea>
+        <div class="row" style="margin-top:10px;">
+          <button class="primary" id="score">採点 ▶</button>
+          <button class="ghost" id="retrySame">⟲ やり直し</button>
+        </div>
+      </section>
+
+      <section id="phaseResult" hidden>
+        <h2>結果</h2>
+        <div class="kpi">
+          <div class="box"><div class="muted">正答率</div><div style="font-size:22px" id="kpiAcc">0%</div></div>
+          <div class="box"><div class="muted">一致</div><div style="font-size:22px" id="kpiHit">0</div></div>
+          <div class="box"><div class="muted">見落とし</div><div style="font-size:22px" id="kpiMiss">0</div></div>
+        </div>
+        <div class="card" style="background:#0b1220;border:1px dashed #334155;margin-top:8px;">
+          <div><b>出題：</b><span id="outShown"></span></div>
+          <div><b>一致：</b><span id="outHit"></span></div>
+          <div><b>見落とし：</b><span id="outMiss"></span></div>
+          <div><b>余分：</b><span id="outExtra"></span></div>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <button class="primary" id="nextRound">次のラウンド ▶</button>
+          <button class="ghost" id="finish">終了してトップへ</button>
+        </div>
+      </section>
+    </main>
+
+    <!-- 右サイド -->
+    <aside class="card">
+      <h2>設定</h2>
+      <div class="row">
+        <label>レベル</label>
+        <select id="level">
+          <option>初級</option>
+          <option>中級</option>
+          <option>上級</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>ラウンド数</label>
+        <input id="rounds" type="number" min="1" max="20" value="5">
+      </div>
+      <div class="row">
+        <label>表示秒数</label>
+        <input id="seconds" type="number" min="3" max="60" value="10">
+      </div>
+      <div class="row">
+        <label>1ラウンドの単語数</label>
+        <input id="nwords" type="number" min="3" max="20" value="5">
+      </div>
+      <div class="row">
+        <label>カスタム単語リスト</label>
+        <input id="file" type="file" accept=".txt">
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button class="primary" id="start">トレーニング開始 ▶</button>
+      </div>
+      <hr style="border:1px solid #1f2937">
+
+      <h2>🏅 称号</h2>
+      <div id="titleDisplay" style="margin-bottom:8px;"></div>
+      <div class="pill">連続記録：<span id="streakDisplay">0</span>日</div>
+      <div class="pill">平均正答率：<span id="avgDisplay">0</span>%</div>
+      <hr style="border:1px solid #1f2937">
+
+      <h2>📊 成績グラフ</h2>
+      <div class="row" style="margin-bottom:8px;">
+        <button class="ghost" data-range="day">日</button>
+        <button class="ghost" data-range="week">週</button>
+        <button class="ghost" data-range="month">月</button>
+      </div>
+      <canvas id="chart" width="600" height="200"></canvas>
+
+      <hr style="border:1px solid #1f2937">
+      <h2>履歴</h2>
+      <div style="max-height:220px;overflow:auto;margin-top:8px">
+        <table id="histTable">
+          <thead><tr><th>#</th><th>日時</th><th>Lv</th><th>正答率</th><th>一致</th><th>見落</th><th>余分</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button class="ghost" id="exportCsv">CSVエクスポート</button>
+        <button class="danger" id="clearHist">履歴クリア</button>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+// ====== グラフ描画（Chart.js） ======
+function getWeekNumber(date){
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1)/7);
+}
+function aggregate(range){
+  const groups = {};
+  for(const r of state.history){
+    const d = new Date(r.timestamp);
+    let key = "";
+    if(range==="day") key = d.toLocaleDateString();
+    else if(range==="week") key = `${d.getFullYear()}-W${getWeekNumber(d)}`;
+    else if(range==="month") key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+    if(!groups[key]) groups[key]=[];
+    groups[key].push(r.accuracy);
+  }
+  return Object.entries(groups)
+    .map(([k,arr])=>({label:k,avg:arr.reduce((a,b)=>a+b,0)/arr.length}))
+    .sort((a,b)=>new Date(a.label)-new Date(b.label));
+}
+let chartInstance=null;
+function drawChart(range="day"){
+  const data = aggregate(range);
+  const labels = data.map(d=>d.label);
+  const values = data.map(d=>Math.round(d.avg));
+  const ctx = document.getElementById('chart').getContext('2d');
+  if(chartInstance) chartInstance.destroy();
+  chartInstance = new Chart(ctx,{
+    type:'line',
+    data:{ labels, datasets:[{label:`平均正答率（${range}）`,data:values,fill:false,borderColor:'#22c55e',tension:0.2}] },
+    options:{ responsive:true, scales:{ y:{min:0,max:100,ticks:{callback:v=>v+"%"} } } }
+  });
+}
+document.querySelectorAll('[data-range]').forEach(btn=>{
+  btn.addEventListener('click',()=>drawChart(btn.getAttribute('data-range')));
+});
+
+// ====== 状態 ======
+const $ = s => document.querySelector(s);
+const state = {
+  started:false, round:0, roundsTotal:5,
+  level:"初級", showSeconds:10, nWords:5,
+  pool:"山 川 海 空 星 月 花 鳥 風 森 石 火 水 木 土 光 夢 心 愛 音".split(" "),
+  current:[],
+  history: JSON.parse(localStorage.getItem("mt_history")||"[]"),
+  titles:  JSON.parse(localStorage.getItem("mt_titles") || "[]"),
+  timer:null, secLeft:0
+};
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function sample(a,n){if(n>a.length)n=a.length;const arr=[...a];shuffle(arr);return arr.slice(0,n);}
+function tokens(s){return s.replace(/[、,]/g," ").split(/\s+/).map(x=>x.trim()).filter(Boolean);}
+
+// ====== 称号 ======
+function calcStreak(){
+  if(!state.history.length) return 0;
+  const days = [...new Set(state.history.map(r=>new Date(r.timestamp).toLocaleDateString()))]
+    .sort((a,b)=>new Date(b)-new Date(a));
+  const today = new Date().toLocaleDateString();
+  let streak=0, current=new Date(today);
+  for(const d of days){
+    const dd=new Date(d);
+    if(dd.toLocaleDateString()===current.toLocaleDateString()){
+      streak++; current.setDate(current.getDate()-1);
+    } else break;
+  }
+  return streak;
+}
+function calcAverageAccuracy(){
+  if(!state.history.length) return 0;
+  return Math.round(state.history.reduce((a,b)=>a+b.accuracy,0)/state.history.length);
+}
+function updateTitles(){
+  const streak = calcStreak();
+  const avg = calcAverageAccuracy();
+  const titles = [];
+  if(streak>=7)  titles.push("🌱 集中の芽");
+  if(streak>=30) titles.push("⚔️ 継続の戦士");
+  if(avg>=90)    titles.push("🧠 記憶の達人");
+  else if(avg>=80) titles.push("📘 安定の覚者");
+  state.titles = titles;
+  localStorage.setItem("mt_titles", JSON.stringify(titles));
+  localStorage.setItem("mt_streak", streak);
+  localStorage.setItem("mt_avg", avg);
+  renderTitles();
+}
+function renderTitles(){
+  $("#titleDisplay").innerHTML = state.titles.length ?
+    state.titles.map(t=>`<span class="chip">${t}</span>`).join(" ") :
+    `<span class="muted">まだ称号はありません</span>`;
+  $("#streakDisplay").textContent = localStorage.getItem("mt_streak") || 0;
+  $("#avgDisplay").textContent    = localStorage.getItem("mt_avg") || 0;
+}
+
+// ====== 進行 ======
+function score(shown,recalled){
+  const S=new Set(shown),R=new Set(recalled);
+  const hit=[...S].filter(x=>R.has(x)),miss=[...S].filter(x=>!R.has(x)),extra=[...R].filter(x=>!S.has(x));
+  const acc= shown.length ? Math.round(100*hit.length/shown.length) : 0;
+  return {acc,hit,miss,extra};
+}
+function setPhase(p){ ["Intro","Show","Answer","Result"].forEach(x=>$("#phase"+x).hidden=p!==x.toLowerCase()); }
+function updateBadges(){
+  $("#levelLabel").textContent=state.level;
+  $("#roundNow").textContent=state.round;
+  $("#roundTotal").textContent=state.roundsTotal;
+  $("#secLabel").textContent=state.showSeconds+"秒";
+  $("#nLabel").textContent=state.nWords+"語";
+  $("#bar").style.width=(state.round/state.roundsTotal*100)+"%";
+}
+function nextRound(){
+  state.round++;
+  if(state.round>state.roundsTotal){
+    alert("全ラウンド終了！おつかれさま🎉"); finishToIntro(); return;
+  }
+  state.current=sample(state.pool,state.nWords);
+  $("#words").textContent=state.current.join("、");
+  $("#chips").innerHTML=state.current.map(w=>`<span class="chip">${w}</span>`).join("");
+  $("#answer").value="";
+  setPhase("show"); updateBadges();
+}
+
+// ====== 表示→非表示（自動/手動） ======
+function clearTimer(){ if(state.timer){ clearInterval(state.timer); state.timer=null; } }
+function hideNow(){ clearTimer(); setPhase("answer"); }
+function startAutoHide(){
+  clearTimer();
+  state.secLeft = state.showSeconds;
+  $("#countdownNote").textContent = `あと ${state.secLeft} 秒で非表示`;
+  state.timer = setInterval(()=>{
+    state.secLeft--;
+    $("#countdownNote").textContent = `あと ${state.secLeft} 秒で非表示`;
+    if(state.secLeft<=0){ clearTimer(); hideNow(); }
+  },1000);
+}
+
+// ====== 履歴テーブル ======
+function refreshTable(){
+  const tb = document.querySelector("#histTable tbody");
+  if(!tb) return;
+  tb.innerHTML = "";
+  state.history.forEach((h,i)=>{
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${i+1}</td><td>${h.timestamp}</td><td>${h.level}</td>
+                    <td>${h.accuracy}</td><td>${h.n_hit}</td><td>${h.n_miss}</td><td>${h.n_extra}</td>`;
+    tb.appendChild(tr);
+  });
+}
+
+// ====== イベント ======
+$("#start").addEventListener("click", ()=>{ state.round=0; nextRound(); });
+$("#resetAll").addEventListener("click", ()=>{ state.round=0; setPhase("intro"); });
+$("#hideNow").addEventListener("click", hideNow);
+$("#autoHide").addEventListener("click", startAutoHide);
+$("#retrySame").addEventListener("click", ()=> setPhase("show"));
+$("#nextRound").addEventListener("click", nextRound);
+$("#finish").addEventListener("click", ()=> setPhase("intro"));
+
+$("#score").addEventListener("click", ()=>{
+  const rec=tokens($("#answer").value);
+  const s=score(state.current,rec);
+  $("#kpiAcc").textContent=s.acc+"%";
+  $("#kpiHit").textContent=s.hit.length;
+  $("#kpiMiss").textContent=s.miss.length;
+  $("#outShown").textContent=state.current.join("、");
+  $("#outHit").textContent=s.hit.length ? s.hit.join("、") : "（なし）";
+  $("#outMiss").textContent=s.miss.length ? s.miss.join("、") : "（なし）";
+  $("#outExtra").textContent=s.extra.length ? s.extra.join("、") : "（なし）";
+  const row={ timestamp:new Date().toLocaleString(), level:state.level, accuracy:s.acc,
+              n_hit:s.hit.length, n_miss:s.miss.length, n_extra:s.extra.length };
+  state.history.push(row);
+  localStorage.setItem("mt_history", JSON.stringify(state.history));
+  refreshTable(); drawChart(); updateTitles();
+  setPhase("result");
+});
+
+// 設定UI
+$("#level").addEventListener("change", e=>{
+  state.level=e.target.value;
+  state.nWords = (state.level==="初級")?5 : (state.level==="中級")?7 : 10;
+  document.querySelector("#nwords").value = state.nWords;
+  updateBadges();
+});
+$("#rounds").addEventListener("input", e=>{
+  state.roundsTotal = Math.max(1, Math.min(20, Number(e.target.value)||5));
+  updateBadges();
+});
+$("#seconds").addEventListener("input", e=>{
+  state.showSeconds = Math.max(3, Math.min(60, Number(e.target.value)||10));
+  updateBadges();
+});
+$("#nwords").addEventListener("input", e=>{
+  state.nWords = Math.max(3, Math.min(20, Number(e.target.value)||5));
+  updateBadges();
+});
+$("#file").addEventListener("change", async e=>{
+  const file = e.target.files[0]; if(!file) return;
+  const text = await file.text();
+  const list = text.replace(/\r/g,"").split(/\n|、|,|\s+/).map(s=>s.trim()).filter(Boolean);
+  if(list.length<3){ alert("単語が少なすぎます（3語以上にしてください）"); return; }
+  state.pool = Array.from(new Set(list));
+  alert(`単語リストを読み込みました（${state.pool.length} 語）`);
+});
+
+// 初期表示
+(function init(){
+  document.querySelector("#level").value = state.level;
+  document.querySelector("#rounds").value = state.roundsTotal;
+  document.querySelector("#seconds").value = state.showSeconds;
+  document.querySelector("#nwords").value = state.nWords;
+  updateBadges(); renderTitles(); refreshTable(); drawChart();
+})();
+
+// ====== CSVエクスポート ======
+function exportToCSV() {
+  if (!state.history.length) {
+    alert("履歴がありません。");
+    return;
+  }
+  const header = ["No","日時","レベル","正答率","一致","見落とし","余分"];
+  const rows = state.history.map((h,i)=>[
+    i+1, h.timestamp, h.level, h.accuracy, h.n_hit, h.n_miss, h.n_extra
+  ]);
+  const csvContent = [header, ...rows].map(e => e.join(",")).join("\n");
+
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "memory_trainer_history.csv";
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ====== 履歴クリア ======
+function clearHistory() {
+  if (!confirm("履歴をすべて削除しますか？")) return;
+  state.history = [];
+  localStorage.removeItem("mt_history");
+  refreshTable();
+  drawChart();
+  updateTitles();
+  alert("履歴をクリアしました。");
+}
+
+// ====== イベント登録 ======
+document.getElementById("exportCsv").addEventListener("click", exportToCSV);
+document.getElementById("clearHist").addEventListener("click", clearHistory);
+
+// 📥 カスタム単語リスト読み込み（3000語対応版）
+document.getElementById("file").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const text = await file.text();
+  // BOM（文字化け対策）
+  const cleanText = text.replace(/^\uFEFF/, "");
+
+  // 改行・空白・カンマ・全角カンマ・タブなど全てを区切り文字として扱う
+  const list = cleanText.split(/[\n\r\s,、\t]+/).map(w => w.trim()).filter(Boolean);
+
+  if (list.length === 0) {
+    alert("単語リストを読み込めませんでした。ファイルの形式を確認してください。");
+    return;
+  }
+
+  state.pool = list;
+  alert(`✅ ${list.length} 語の単語リストを読み込みました`);
+});
+
+</script>
+</body>
+</html>
