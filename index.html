@@ -126,15 +126,15 @@
       </div>
       <div class="row">
         <label>ラウンド数</label>
-        <input id="rounds" type="number" min="1" max="20" value="5">
+        <input id="rounds" type="number" min="1" max="20" value="1">
       </div>
       <div class="row">
         <label>表示秒数</label>
-        <input id="seconds" type="number" min="3" max="60" value="10">
+        <input id="seconds" type="number" min="3" max="60" value="30">
       </div>
       <div class="row">
         <label>1ラウンドの単語数</label>
-        <input id="nwords" type="number" min="3" max="20" value="5">
+        <input id="nwords" type="number" min="3" max="50" value="10">
       </div>
       <div class="row">
         <label>カスタム単語リスト</label>
@@ -219,8 +219,8 @@ document.querySelectorAll('[data-range]').forEach(btn=>{
 // ====== 状態 ======
 const $ = s => document.querySelector(s);
 const state = {
-  started:false, round:0, roundsTotal:5,
-  level:"初級", showSeconds:10, nWords:5,
+  started:false, round:0, roundsTotal:10,
+  level:"初級", showSeconds:30, nWords:10,
   pool:"山 川 海 空 星 月 花 鳥 風 森 石 火 水 木 土 光 夢 心 愛 音".split(" "),
   current:[],
   history: JSON.parse(localStorage.getItem("mt_history")||"[]"),
@@ -430,26 +430,46 @@ function clearHistory() {
 document.getElementById("exportCsv").addEventListener("click", exportToCSV);
 document.getElementById("clearHist").addEventListener("click", clearHistory);
 
-// 📥 カスタム単語リスト読み込み（3000語対応版）
+// 📂 カスタム単語リスト読み込み（日本語対応強化版）
 document.getElementById("file").addEventListener("change", async (e) => {
   const file = e.target.files[0];
   if (!file) return;
 
-  const text = await file.text();
-  // BOM（文字化け対策）
-  const cleanText = text.replace(/^\uFEFF/, "");
+  let text = await file.text();
 
-  // 改行・空白・カンマ・全角カンマ・タブなど全てを区切り文字として扱う
-  const list = cleanText.split(/[\n\r\s,、\t]+/).map(w => w.trim()).filter(Boolean);
+  // 1) 文字正規化（濁点結合などの統一）& BOM/ゼロ幅除去
+  text = text.normalize("NFKC")
+             .replace(/\uFEFF/g, "")      // BOM を全文から
+             .replace(/[\u200B-\u200D]/g, ""); // ゼロ幅
 
-  if (list.length === 0) {
-    alert("単語リストを読み込めませんでした。ファイルの形式を確認してください。");
-    return;
-  }
+  // 2) 改行統一 & 全角スペース→半角
+  text = text.replace(/\r/g, "").replace(/\u3000/g, " ");
 
-  state.pool = list;
-  alert(`✅ ${list.length} 語の単語リストを読み込みました`);
+  // 3) 改行で区切る（1語1行前提）
+  const list = text.split(/\n+/).map(w => w.trim()).filter(Boolean);
+
+  // 4) 許可文字だけ残す（漢字・ひらがな・カタカナ・長音・中点・反復記号・ヶ/ヵ・数字）
+  const KEEP = /[^\p{Script=Hani}\p{Script=Hira}\p{Script=Kana}ー・々ヶヵゝゞヽヾ0-9０-９]/gu;
+  const cleanList = list.map(w => w.replace(KEEP, "")).filter(Boolean);
+
+  // デバッグ（どこで減っているか確認）
+  console.log({
+    rawLines: text.split(/\n/).length,
+    afterSplit: list.length,
+    afterClean: cleanList.length
+  });
+
+  // 5) 重複を消したくないならこのまま
+  state.pool = cleanList;
+
+  // ※ 重複を消したい場合は下の2行に差し替え
+  // const unique = Array.from(new Set(cleanList));
+  // state.pool = unique;
+
+  alert(`${state.pool.length} 語の単語リストを読み込みました`);
+  console.log("[sample]", state.pool.slice(0, 30));
 });
+
 
 </script>
 </body>
